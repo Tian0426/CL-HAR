@@ -1,3 +1,10 @@
+# CL-HAR
+
+CL-HAR is an open-source PyTorch library of contrastive learning on wearable-sensor-based human activity recognition (HAR). For more information, please refer to our paper "What Makes Good Contrastive Learning on Small-scale Wearable-based Tasks?".
+
+
+
+
 
 ## Encoder Networks
 Refer to ```models/backbones.py```
