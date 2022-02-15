@@ -1,13 +1,6 @@
 data/
-data_preprocess/
-models/
-plots/
-scripts/
 .ipynb_checkpoints/
-augmentations.py
-main_scheduler_subject.py
-trainer.py
-utils.py
-.idea/
+.idea/*
 .DS_Store
+check.sh
 

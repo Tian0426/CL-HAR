@@ -6,10 +6,9 @@ parser.add_argument('--cuda', default=1, type=int, help='0/1')
 # hyperparameter
 parser.add_argument('--batch_size', type=int, default=64, help='batch size of training')
 parser.add_argument('--n_epoch', type=int, default=60, help='number of training epochs')
-parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')  # 0.001
+parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 parser.add_argument('--lr_cls', type=float, default=1e-3, help='learning rate for linear classifier')
 parser.add_argument('--scheduler', type=bool, default=True, help='if or not to use a scheduler')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum of SGD solver')
 parser.add_argument('--weight_decay', default=1e-4, type=float, metavar='W', help='weight decay (default: 1e-4)', dest='weight_decay')
 
 # dataset
@@ -17,7 +16,7 @@ parser.add_argument('--dataset', type=str, default='ucihar', choices=['ucihar', 
 parser.add_argument('--n_feature', type=int, default=77, help='name of feature dimension')
 parser.add_argument('--len_sw', type=int, default=30, help='length of sliding window')
 parser.add_argument('--n_class', type=int, default=18, help='number of class')
-parser.add_argument('--cases', type=str, default='random', choices=['subject', 'random', 'cross_device', 'joint_device'],
+parser.add_argument('--cases', type=str, default='random', choices=['random', 'subject', 'subject_large', 'cross_device', 'joint_device'],
                     help='name of scenarios, cross_device and joint_device only applicable when hhar is used')
 parser.add_argument('--split_ratio', type=float, default=0.2, help='split ratio of test/val: train(0.64), val(0.16), test(0.2)')
 parser.add_argument('--target_domain', type=str, default='0', help='the target domain, [0 to 29] for ucihar, '
@@ -26,31 +25,32 @@ parser.add_argument('--target_domain', type=str, default='0', help='the target d
 
 # augmentation
 parser.add_argument('--aug1', type=str, default='jit_scal',
-                    choices=['na', 'perm_jit', 'shuffle', 'resample', 'jit_scal', 'noised','scaling', 'negated', 'time_flipped', 'perm', 'time_warp', 'rotation', 'ifft_hfc', 'ifft_lfc', 'ifft_phase_shift', 'ifft_amp_phase_pert', 'ifft_amp_phase_pert_fully'],
-                    help='the type of self-supervised task')
-parser.add_argument('--aug2', type=str, default='resample', help='the type of self-supervised task')
-parser.add_argument('--aug_seed', type=int, default=21, help='seed for random initialized operations in augmentations')
+                    choices=['na', 'noise', 'scale', 'negate', 'perm', 'shuffle', 't_flip', 't_warp', 'resample', 'rotation', 'perm_jit', 'jit_scal', 'hfc', 'lfc', 'p_shift', 'ap_p', 'ap_f'],
+                    help='the type of augmentation transformation')
+parser.add_argument('--aug2', type=str, default='resample',
+                    choices=['na', 'noise', 'scale', 'negate', 'perm', 'shuffle', 't_flip', 't_warp', 'resample', 'rotation', 'perm_jit', 'jit_scal', 'hfc', 'lfc', 'p_shift', 'ap_p', 'ap_f'],
+                    help='the type of augmentation transformation')
 
 # framework
 parser.add_argument('--framework', type=str, default='byol', choices=['byol', 'simsiam', 'simclr', 'nnclr', 'tstcc'], help='name of framework')
-parser.add_argument('--backbone', type=str, default='DCL', choices=['FCN', 'DCL', 'LSTM', 'AE', 'CNN_AE', 'Transformer'], help='name of framework')
+parser.add_argument('--backbone', type=str, default='DCL', choices=['FCN', 'DCL', 'LSTM', 'AE', 'CNN_AE', 'Transformer'], help='name of backbone network')
 parser.add_argument('--criterion', type=str, default='cos_sim', choices=['cos_sim', 'NTXent'],
-                    help='type of loss function for self-supervised learning')
+                    help='type of loss function for contrastive learning')
 parser.add_argument('--p', type=int, default=128,
                     help='byol: projector size, simsiam: projector output size, simclr: projector output size')
 parser.add_argument('--phid', type=int, default=128,
                     help='byol: projector hidden size, simsiam: predictor hidden size, simclr: na')
 
 # log
-parser.add_argument('--logdir', type=str, default='log_ss/', help='log directory')
+parser.add_argument('--logdir', type=str, default='log/', help='log directory')
 
 # byol
 parser.add_argument('--lr_mul', type=float, default=10.0,
                     help='lr multiplier for the second optimizer when training byol')
-parser.add_argument('--EMA_decay', type=float, default=0.99, help='exponential moving average decay')
+parser.add_argument('--EMA', type=float, default=0.996, help='exponential moving average parameter')
 
 # nnclr
-parser.add_argument('--mmb_size', type=int, default=256, help='maximum size of NNCLR support set')
+parser.add_argument('--mmb_size', type=int, default=1024, help='maximum size of NNCLR support set')
 
 # TS-TCC
 parser.add_argument('--lambda1', type=float, default=1.0, help='weight for temporal contrastive loss')
@@ -72,14 +72,8 @@ if __name__ == '__main__':
     print('device:', DEVICE, 'dataset:', args.dataset)
 
     train_loaders, val_loader, test_loader = setup_dataloaders(args)
-
-    args.model_name = 'try_scheduler_' + args.framework + '_pretrain_' + args.dataset + '_eps' + str(args.n_epoch) + '_lr' + str(args.lr) + '_bs' + str(args.batch_size) \
-                      + '_aug1' + args.ssh_type1 + '_aug2' + args.ssh_type2 + '_dim-pdim' + str(args.p) + '-' + str(args.phid) \
-                      + '_EMAdecay' + str(args.EMA_decay) + '_criterion_' + args.criterion + '_target_' + args.target_domain  # todo
-
-    if args.scheduler:
-        model, optimizers, schedulers, criterion, logger, fitlog, classifier, criterion_cls, optimizer_cls = setup(args, DEVICE)
-        best_pretrain_model = train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, schedulers, criterion, args)
+    model, optimizers, schedulers, criterion, logger, fitlog, classifier, criterion_cls, optimizer_cls = setup(args, DEVICE)
+    best_pretrain_model = train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, schedulers, criterion, args)
 
     best_pretrain_model = test(test_loader, best_pretrain_model, logger, fitlog, DEVICE, criterion, args)
 
