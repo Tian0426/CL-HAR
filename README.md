@@ -45,7 +45,7 @@ Refer to ```models/backbones.py```
 - Transformer
 
 ## Contrastive Models
-Refer to ```models/models.py```. For sub-modules (projectors, predictors) in the frameworks, refer to ```models/backbones.py```
+Refer to ```models/frameworks.py```. For sub-modules (projectors, predictors) in the frameworks, refer to ```models/backbones.py```
 - TS-TCC 
 - SimSiam
 - BYOL
