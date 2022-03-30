@@ -236,8 +236,12 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
         fitlog.add_loss(optimizers[0].param_groups[0]['lr'], name="learning rate", step=epoch)
         for scheduler in schedulers:
             scheduler.step()
+            
         # save model
-        model_dir = 'results/pretrain_' + args.model_name + str(epoch) + '.pt'
+        dir_name = 'results'
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
+        model_dir = dir_name + '/pretrain_' + args.model_name + str(epoch) + '.pt'
         print('Saving model at {} epoch to {}'.format(epoch, model_dir))
         torch.save({'model_state_dict': model.state_dict()}, model_dir)
 
