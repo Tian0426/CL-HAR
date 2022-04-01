@@ -13,6 +13,9 @@ conda activate CL-HAR
 pip install -r requirements.txt
 ```
 
+For the version of torch and torchvision, we found torch==1.8.0 and torchvision==0.9.0 work fine on cuda 11.6 (Tesla V100). The version of these packages should be subject to the cuda version on your device
+
+
 ## Quick Start
 To train contrastive models on UCIHAR dataset, run the following script.
 ```

@@ -18,6 +18,16 @@ import seaborn as sns
 import fitlog
 from copy import deepcopy
 
+# create directory for saving models and plots
+global model_dir_name
+model_dir_name = 'results'
+if not os.path.exists(model_dir_name):
+    os.makedirs(model_dir_name)
+global plot_dir_name
+plot_dir_name = 'plot'
+if not os.path.exists(plot_dir_name):
+    os.makedirs(plot_dir_name)
+
 def setup_dataloaders(args):
     if args.dataset == 'ucihar':
         args.n_feature = 9
@@ -74,7 +84,7 @@ def setup_model_optm(args, DEVICE, classifier=True):
     else:
         NotImplementedError
 
-    # set up model and optimizera
+    # set up model and optimizers
     if args.framework in ['byol', 'simsiam']:
         model = BYOL(DEVICE, backbone, window_size=args.len_sw, n_channels=args.n_feature, projection_size=args.p,
                      projection_hidden_size=args.phid, moving_average=args.EMA)
@@ -238,10 +248,7 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
             scheduler.step()
             
         # save model
-        dir_name = 'results'
-        if not os.path.exists(dir_name):
-            os.makedirs(dir_name)
-        model_dir = dir_name + '/pretrain_' + args.model_name + str(epoch) + '.pt'
+        model_dir = model_dir_name + '/pretrain_' + args.model_name + str(epoch) + '.pt'
         print('Saving model at {} epoch to {}'.format(epoch, model_dir))
         torch.save({'model_state_dict': model.state_dict()}, model_dir)
 
@@ -357,10 +364,6 @@ def test(test_loader, best_model, logger, fitlog, DEVICE, criterion, args):
         logger.debug(f'Test Loss     : {total_loss / n_batches:.4f}')
         fitlog.add_best_metric({"dev": {"pretrain test loss": total_loss / n_batches}})
 
-    model_dir = 'results/linclf' + args.model_name + '.pt'
-    print('Saving model to {}'.format(model_dir))
-    torch.save({'model': model.state_dict()}, model_dir)
-
     return model
 
 
@@ -406,10 +409,10 @@ def train_lincls(train_loaders, val_loader, trained_backbone, classifier, logger
                 total += target.size(0)
                 correct += (predicted == target).sum()
         # save model
-        if epoch == args.n_epoch - 1:
-            model_dir = 'results_plot/lincls_' + args.model_name + str(epoch) + '.pt'
-            print('Saving model at {} epoch to {}'.format(epoch, model_dir))
-            torch.save({'trained_backbone': trained_backbone.state_dict(), 'classifier':classifier.state_dict()}, model_dir)
+        model_dir = model_dir_name + '/lincls_' + args.model_name + str(epoch) + '.pt'
+        print('Saving model at {} epoch to {}'.format(epoch, model_dir))
+        torch.save({'trained_backbone': trained_backbone.state_dict(), 'classifier':classifier.state_dict()}, model_dir)
+
         acc_train = float(correct) * 100.0 / total
         logger.debug(f'epoch train loss     : {total_loss:.4f}, train acc     : {acc_train:.4f}')
         fitlog.add_loss(total_loss , name="Train Loss", step=epoch)
@@ -496,8 +499,8 @@ def test_lincls(test_loader, trained_backbone, best_lincls, logger, fitlog, DEVI
         logger.debug(confusion_matrix.diag() / confusion_matrix.sum(1))
 
     if plt == True:
-        tsne(feats, trgs, save_dir='plot/' + args.model_name + '_tsne.png')
-        mds(feats, trgs, save_dir='plot/' + args.model_name + '_mds.png')
+        tsne(feats, trgs, save_dir=plot_dir_name + '/' + args.model_name + '_tsne.png')
+        mds(feats, trgs, save_dir=plot_dir_name + '/' + args.model_name + '_mds.png')
         sns_plot = sns.heatmap(confusion_matrix, cmap='Blues', annot=True)
-        sns_plot.get_figure().savefig('plot/' + args.model_name + '_confmatrix.png')
-        print('plots saved to plot/')
+        sns_plot.get_figure().savefig(plot_dir_name + '/' + args.model_name + '_confmatrix.png')
+        print('plots saved to ', plot_dir_name)
