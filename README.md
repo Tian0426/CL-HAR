@@ -1,6 +1,6 @@
 # CL-HAR
 
-CL-HAR is an open-source PyTorch library of contrastive learning on wearable-sensor-based human activity recognition (HAR). For more information, please refer to our paper ["What Makes Good Contrastive Learning on Small-Scale Wearable-based Tasks?"](https://arxiv.org/abs/2202.05998 ).
+CL-HAR is an open-source PyTorch library of contrastive learning on wearable-sensor-based human activity recognition (HAR). For more information, please refer to our KDD-2022 paper ["What Makes Good Contrastive Learning on Small-Scale Wearable-based Tasks?"](https://arxiv.org/abs/2202.05998 ).
 
 For more of our results, please refer to [results.md](results.md)
 
@@ -28,9 +28,9 @@ python main.py --framework 'tstcc'   --backbone 'FCN' --dataset 'ucihar' --aug1 
 
 
 ## Supported Datasets
-- UCIHAR
-- SHAR
-- HHAR
+- UCIHAR [link](https://archive.ics.uci.edu/ml/datasets/human+activity+recognition+using+smartphones)
+- SHAR [link](http://www.sal.disco.unimib.it/technologies/unimib-shar/)
+- HHAR [link](http://archive.ics.uci.edu/ml/datasets/heterogeneity+activity+recognition)
 
 ## Data Split Cases
 - random 
@@ -95,20 +95,6 @@ Refer to ```augmentations.py```
 - t-SNE
 - MDS
 
-## Related Links
-Part of the augmentation transformation functions are adapted from
-- https://github.com/emadeldeen24/TS-TCC
-- https://github.com/terryum/Data-Augmentation-For-Wearable-Sensor-Data
-- https://github.com/LijieFan/AdvCL/blob/main/fr_util.py
-
-Part of the contrastive models are adapted from 
-- https://github.com/lucidrains/byol-pytorch
-- https://github.com/lightly-ai/lightly
-- https://github.com/emadeldeen24/TS-TCC
-
-Loggers used in the repo are adapted from 
-- https://github.com/emadeldeen24/TS-TCC
-- https://github.com/fastnlp/fitlog
 
 ## Reference
 If you find any of the codes helpful, kindly cite our paper.
@@ -123,3 +109,19 @@ If you find any of the codes helpful, kindly cite our paper.
 >      primaryClass={cs.LG}
 >}
 > ```
+
+
+## Related Links
+Part of the augmentation transformation functions are adapted from
+- https://github.com/emadeldeen24/TS-TCC
+- https://github.com/terryum/Data-Augmentation-For-Wearable-Sensor-Data
+- https://github.com/LijieFan/AdvCL/blob/main/fr_util.py
+
+Part of the contrastive models are adapted from 
+- https://github.com/lucidrains/byol-pytorch
+- https://github.com/lightly-ai/lightly
+- https://github.com/emadeldeen24/TS-TCC
+
+Loggers used in the repo are adapted from 
+- https://github.com/emadeldeen24/TS-TCC
+- https://github.com/fastnlp/fitlog
