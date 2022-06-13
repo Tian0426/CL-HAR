@@ -83,3 +83,6 @@ if __name__ == '__main__':
 
     best_lincls = train_lincls(train_loaders, val_loader, trained_backbone, classifier, logger, fitlog, DEVICE, optimizer_cls, criterion_cls, args)
     test_lincls(test_loader, trained_backbone, best_lincls, logger, fitlog, DEVICE, criterion_cls, args, plt=args.plt)
+
+    # remove saved intermediate models
+    delete_files(args)

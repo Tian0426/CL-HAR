@@ -123,6 +123,17 @@ def setup_model_optm(args, DEVICE, classifier=True):
         return model, optimizers
 
 
+def delete_files(args):
+    for epoch in range(args.n_epoch):
+        model_dir = args.storage + '/pretrain_' + args.model_name + str(epoch) + '.pt'
+        if os.path.isfile(model_dir):
+            os.remove(model_dir)
+
+        cls_dir = args.storage + '/lincls_' + args.model_name + str(epoch) + '.pt'
+        if os.path.isfile(cls_dir):
+            os.remove(cls_dir)
+
+
 def setup(args, DEVICE):
     # set up default hyper-parameters
     if args.framework == 'byol':
@@ -397,7 +408,7 @@ def train_lincls(train_loaders, val_loader, trained_backbone, classifier, logger
             for idx, (sample, target, domain) in enumerate(train_loader):
                 sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
                 _, feat = trained_backbone(sample)
-                if args.framework == 'tstcc' or args.backbone == 'FCN':
+                if len(feat.shape) == 3:
                     feat = feat.reshape(feat.shape[0], -1)
                 output = classifier(feat)
                 loss = criterion(output, target)
@@ -433,7 +444,7 @@ def train_lincls(train_loaders, val_loader, trained_backbone, classifier, logger
                 for idx, (sample, target, domain) in enumerate(val_loader):
                     sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
                     _, feat = trained_backbone(sample)
-                    if args.framework == 'tstcc' or args.backbone == 'FCN':
+                    if len(feat.shape) == 3:
                         feat = feat.reshape(feat.shape[0], -1)
                     output = classifier(feat)
                     loss = criterion(output, target)
@@ -467,7 +478,7 @@ def test_lincls(test_loader, trained_backbone, best_lincls, logger, fitlog, DEVI
         for idx, (sample, target, domain) in enumerate(test_loader):
             sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
             _, feat = trained_backbone(sample)
-            if args.framework == 'tstcc' or args.backbone == 'FCN':
+            if len(feat.shape) == 3:
                 feat = feat.reshape(feat.shape[0], -1)
             output = classifier(feat)
             if feats is None:
