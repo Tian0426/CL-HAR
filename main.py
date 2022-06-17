@@ -2,7 +2,7 @@ import argparse
 from trainer import *
 
 parser = argparse.ArgumentParser(description='argument setting of network')
-parser.add_argument('--cuda', default=0, type=int, help='cuda device ID')
+parser.add_argument('--cuda', default=0, type=int, help='cuda device ID，0/1')
 # hyperparameter
 parser.add_argument('--batch_size', type=int, default=64, help='batch size of training')
 parser.add_argument('--n_epoch', type=int, default=60, help='number of training epochs')

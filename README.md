@@ -47,6 +47,16 @@ Refer to ```models/backbones.py```
 - CAE
 - Transformer
 
+To obtain supervised learning baselines of the encoder networks, you may use ```main_supervised_baseline.py```
+<br>To train an encoder network under supervised setting, you can run the following code:
+```angular2html
+python main_supervised_baseline.py --batch_size 64 --lr 1e-4 --dataset 'ucihar' --backbone 'FCN' 
+python main_supervised_baseline.py --batch_size 64 --lr 1e-4 --dataset 'ucihar' --backbone 'DCL' 
+python main_supervised_baseline.py --batch_size 64 --lr 1e-4 --dataset 'ucihar' --backbone 'LSTM' 
+python main_supervised_baseline.py --batch_size 64 --lr 1e-4 --dataset 'ucihar' --backbone 'Transformer' 
+python main_supervised_baseline.py --lambda1 5.0 --batch_size 64 --lr 1e-4 --dataset 'ucihar' --backbone 'AE'
+python main_supervised_baseline.py --lambda1 5.0 --batch_size 64 --lr 1e-4 --dataset 'ucihar' --backbone 'CNN_AE'
+```
 ## Contrastive Models
 Refer to ```models/frameworks.py```. For sub-modules (projectors, predictors) in the frameworks, refer to ```models/backbones.py```
 - TS-TCC 

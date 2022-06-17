@@ -28,6 +28,7 @@ plot_dir_name = 'plot'
 if not os.path.exists(plot_dir_name):
     os.makedirs(plot_dir_name)
 
+
 def setup_dataloaders(args):
     if args.dataset == 'ucihar':
         args.n_feature = 9
@@ -35,7 +36,7 @@ def setup_dataloaders(args):
         args.n_class = 6
         if args.cases not in ['subject', 'subject_large']:
             args.target_domain == '0'
-        train_loaders, val_loader, test_loader = data_preprocess_ucihar.prep_ucihar(args, SLIDING_WINDOW_LEN=args.len_sw, SLIDING_WINDOW_STEP=int(args.len_sw * 0.5))
+        train_loaders, val_loader, test_loader = data_preprocess_ucihar.prep_ucihar(args, SLIDING_WINDOW_LEN=args.len_sw, SLIDING_WINDOW_STEP=int( args.len_sw * 0.5))
     if args.dataset == 'shar':
         args.n_feature = 3
         args.len_sw = 151
@@ -48,9 +49,11 @@ def setup_dataloaders(args):
         args.len_sw = 100
         args.n_class = 6
         source_domain = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
-        source_domain.remove(args.target_domain)
-        train_loaders, val_loader, test_loader = data_preprocess_hhar.prep_hhar(args, SLIDING_WINDOW_LEN=args.len_sw, SLIDING_WINDOW_STEP=int( args.len_sw * 0.5),
-                                                                                device=args.device, train_user=source_domain, test_user=args.target_domain)
+        # source_domain.remove(args.target_domain)
+        train_loaders, val_loader, test_loader = data_preprocess_hhar.prep_hhar(args, SLIDING_WINDOW_LEN=args.len_sw, SLIDING_WINDOW_STEP=int(args.len_sw * 0.5),
+                                                                                device=args.device,
+                                                                                train_user=source_domain,
+                                                                                test_user=args.target_domain)
 
     return train_loaders, val_loader, test_loader
 
@@ -125,11 +128,11 @@ def setup_model_optm(args, DEVICE, classifier=True):
 
 def delete_files(args):
     for epoch in range(args.n_epoch):
-        model_dir = args.storage + '/pretrain_' + args.model_name + str(epoch) + '.pt'
+        model_dir = model_dir_name + '/pretrain_' + args.model_name + str(epoch) + '.pt'
         if os.path.isfile(model_dir):
             os.remove(model_dir)
 
-        cls_dir = args.storage + '/lincls_' + args.model_name + str(epoch) + '.pt'
+        cls_dir = model_dir_name + '/lincls_' + args.model_name + str(epoch) + '.pt'
         if os.path.isfile(cls_dir):
             os.remove(cls_dir)
 
@@ -185,19 +188,63 @@ def setup(args, DEVICE):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.n_epoch, eta_min=0)
         schedulers.append(scheduler)
 
+    global nn_replacer
+    nn_replacer = None
     if args.framework == 'nnclr':
-        global nn_replacer
         nn_replacer = NNMemoryBankModule(size=args.mmb_size)
 
+    global recon
+    recon = None
+    if args.backbone in ['AE', 'CNN_AE']:
+        recon = nn.MSELoss()
+
     return model, optimizers, schedulers, criterion, logger, fitlog, classifier, criterion_cls, optimizer_cls
+
+
+def calculate_model_loss(args, sample, target, model, criterion, DEVICE, recon=None, nn_replacer=None):
+    aug_sample1 = gen_aug(sample, args.aug1)
+    aug_sample2 = gen_aug(sample, args.aug2)
+    aug_sample1, aug_sample2, target = aug_sample1.to(DEVICE).float(), aug_sample2.to(DEVICE).float(), target.to(
+        DEVICE).long()
+    if args.framework in ['byol', 'simsiam']:
+        assert args.criterion == 'cos_sim'
+    if args.framework in ['tstcc', 'simclr', 'nnclr']:
+        assert args.criterion == 'NTXent'
+    if args.framework in ['byol', 'simsiam', 'nnclr']:
+        if args.backbone in ['AE', 'CNN_AE']:
+            x1_encoded, x2_encoded, p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
+            recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
+        else:
+            p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
+        if args.framework == 'nnclr':
+            z1 = nn_replacer(z1, update=False)
+            z2 = nn_replacer(z2, update=True)
+        if args.criterion == 'cos_sim':
+            loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
+        elif args.criterion == 'NTXent':
+            loss = (criterion(p1, z2) + criterion(p2, z1)) * 0.5
+        if args.backbone in ['AE', 'CNN_AE']:
+            loss = loss * args.lambda1 + recon_loss * args.lambda2
+    if args.framework == 'simclr':
+        if args.backbone in ['AE', 'CNN_AE']:
+            x1_encoded, x2_encoded, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
+            recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
+        else:
+            z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
+        loss = criterion(z1, z2)
+        if args.backbone in ['AE', 'CNN_AE']:
+            loss = loss * args.lambda1 + recon_loss * args.lambda2
+    if args.framework == 'tstcc':
+        nce1, nce2, p1, p2 = model(x1=aug_sample1, x2=aug_sample2)
+        tmp_loss = nce1 + nce2
+        ctx_loss = criterion(p1, p2)
+        loss = tmp_loss * args.lambda1 + ctx_loss * args.lambda2
+    return loss
 
 
 def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, schedulers, criterion, args):
     best_model = None
     min_val_loss = 1e8
-
-    if args.backbone in ['AE', 'CNN_AE']:
-        recon = nn.MSELoss()
 
     for epoch in range(args.n_epoch):
         logger.debug(f'\nEpoch : {epoch}')
@@ -211,43 +258,7 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
                 if sample.size(0) != args.batch_size:
                     continue
                 n_batches += 1
-                aug_sample1 = gen_aug(sample, args.aug1)
-                aug_sample2 = gen_aug(sample, args.aug2)
-                aug_sample1, aug_sample2, target = aug_sample1.to(DEVICE).float(), aug_sample2.to(DEVICE).float(), target.to(DEVICE).long()
-                if args.framework in ['byol', 'simsiam']:
-                    assert args.criterion == 'cos_sim'
-                if args.framework in ['tstcc', 'simclr', 'nnclr']:
-                    assert args.criterion == 'NTXent'
-                if args.framework in ['byol', 'simsiam', 'nnclr']:
-                    if args.backbone in ['AE', 'CNN_AE']:
-                        x1_encoded, x2_encoded, p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                        recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
-                    else:
-                        p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                    if args.framework == 'nnclr':
-                        z1 = nn_replacer(z1, update=False)
-                        z2 = nn_replacer(z2, update=True)
-                    if args.criterion == 'cos_sim':
-                        loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
-                    elif args.criterion == 'NTXent':
-                        loss = (criterion(p1, z2) + criterion(p2, z1)) * 0.5
-                    if args.backbone in ['AE', 'CNN_AE']:
-                        loss = loss * args.lambda1 + recon_loss * args.lambda2
-                if args.framework == 'simclr':
-                    if args.backbone in ['AE', 'CNN_AE']:
-                        x1_encoded, x2_encoded, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                        recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
-                    else:
-                        z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                    loss = criterion(z1, z2)
-                    if args.backbone in ['AE', 'CNN_AE']:
-                        loss = loss * args.lambda1 + recon_loss * args.lambda2
-                if args.framework == 'tstcc':
-                    nce1, nce2, p1, p2 = model(x1=aug_sample1, x2=aug_sample2)
-                    tmp_loss = nce1 + nce2
-                    ctx_loss = criterion(p1, p2)
-                    loss = tmp_loss * args.lambda1 + ctx_loss * args.lambda2
-
+                loss = calculate_model_loss(args, sample, target, model, criterion, DEVICE, recon=recon, nn_replacer=nn_replacer)
                 total_loss += loss.item()
                 loss.backward()
                 for optimizer in optimizers:
@@ -257,7 +268,7 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
         fitlog.add_loss(optimizers[0].param_groups[0]['lr'], name="learning rate", step=epoch)
         for scheduler in schedulers:
             scheduler.step()
-            
+
         # save model
         model_dir = model_dir_name + '/pretrain_' + args.model_name + str(epoch) + '.pt'
         print('Saving model at {} epoch to {}'.format(epoch, model_dir))
@@ -280,40 +291,7 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
                     if sample.size(0) != args.batch_size:
                         continue
                     n_batches += 1
-                    aug_sample1 = gen_aug(sample, args.aug1)
-                    aug_sample2 = gen_aug(sample, args.aug2)
-                    aug_sample1, aug_sample2, target = aug_sample1.to(DEVICE).float(), aug_sample2.to(
-                        DEVICE).float(), target.to(DEVICE).long()
-                    if args.framework in ['byol', 'simsiam', 'nnclr']:
-                        if args.backbone in ['AE', 'CNN_AE']:
-                            x1_encoded, x2_encoded, p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                            recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
-                        else:
-                            p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                        if args.framework == 'nnclr':
-                            z1 = nn_replacer(z1, update=False)
-                            z2 = nn_replacer(z2, update=True)
-                        if args.criterion == 'cos_sim':
-                            loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
-                        elif args.criterion == 'NTXent':
-                            loss = (criterion(p1, z2) + criterion(p2, z1)) * 0.5
-                        if args.backbone in ['AE', 'CNN_AE']:
-                            loss = loss * args.lambda1 + recon_loss * args.lambda2
-                    if args.framework == 'simclr':
-                        if args.backbone in ['AE', 'CNN_AE']:
-                            x1_encoded, x2_encoded, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                            recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
-                        else:
-                            z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                        loss = criterion(z1, z2)
-                        if args.backbone in ['AE', 'CNN_AE']:
-                            loss = loss * args.lambda1 + recon_loss * args.lambda2
-                    if args.framework == 'tstcc':
-                        nce1, nce2, p1, p2 = model(x1=aug_sample1, x2=aug_sample2)
-                        tmp_loss = nce1 + nce2
-                        ctx_loss = criterion(p1, p2)
-                        loss = tmp_loss * args.lambda1 + ctx_loss * args.lambda2
-
+                    loss = calculate_model_loss(args, sample, target, model, criterion, DEVICE, recon=recon, nn_replacer=nn_replacer)
                     total_loss += loss.item()
                 if total_loss <= min_val_loss:
                     min_val_loss = total_loss
@@ -325,8 +303,6 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
 
 
 def test(test_loader, best_model, logger, fitlog, DEVICE, criterion, args):
-    if args.backbone in ['AE', 'CNN_AE']:
-        recon = nn.MSELoss()
     model, _ = setup_model_optm(args, DEVICE, classifier=False)
     model.load_state_dict(best_model)
     with torch.no_grad():
@@ -337,40 +313,7 @@ def test(test_loader, best_model, logger, fitlog, DEVICE, criterion, args):
             if sample.size(0) != args.batch_size:
                 continue
             n_batches += 1
-            aug_sample1 = gen_aug(sample, args.aug1)
-            aug_sample2 = gen_aug(sample, args.aug2)
-            aug_sample1, aug_sample2, target = aug_sample1.to(DEVICE).float(), aug_sample2.to(
-                DEVICE).float(), target.to(DEVICE).long()
-            if args.framework in ['byol', 'simsiam', 'nnclr']:
-                if args.backbone in ['AE', 'CNN_AE']:
-                    x1_encoded, x2_encoded, p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                    recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
-                else:
-                    p1, p2, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                if args.framework == 'nnclr':
-                    z1 = nn_replacer(z1, update=False)
-                    z2 = nn_replacer(z2, update=True)
-                if args.criterion == 'cos_sim':
-                    loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
-                elif args.criterion == 'NTXent':
-                    loss = (criterion(p1, z2) + criterion(p2, z1)) * 0.5
-                if args.backbone in ['AE', 'CNN_AE']:
-                    loss = loss * args.lambda1 + recon_loss * args.lambda2
-            if args.framework == 'simclr':
-                if args.backbone in ['AE', 'CNN_AE']:
-                    x1_encoded, x2_encoded, z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                    recon_loss = recon(aug_sample1, x1_encoded) + recon(aug_sample2, x2_encoded)
-                else:
-                    z1, z2 = model(x1=aug_sample1, x2=aug_sample2)
-                loss = criterion(z1, z2)
-                if args.backbone in ['AE', 'CNN_AE']:
-                    loss = loss * args.lambda1 + recon_loss * args.lambda2
-            if args.framework == 'tstcc':
-                nce1, nce2, p1, p2 = model(x1=aug_sample1, x2=aug_sample2)
-                tmp_loss = nce1 + nce2
-                ctx_loss = criterion(p1, p2)
-                loss = tmp_loss * args.lambda1 + ctx_loss * args.lambda2
-
+            loss = calculate_model_loss(args, sample, target, model, criterion, DEVICE, recon=recon, nn_replacer=nn_replacer)
             total_loss += loss.item()
         logger.debug(f'Test Loss     : {total_loss / n_batches:.4f}')
         fitlog.add_best_metric({"dev": {"pretrain test loss": total_loss / n_batches}})
@@ -392,6 +335,16 @@ def lock_backbone(model, args):
     return trained_backbone
 
 
+def calculate_lincls_output(sample, target, trained_backbone, classifier, criterion):
+    _, feat = trained_backbone(sample)
+    if len(feat.shape) == 3:
+        feat = feat.reshape(feat.shape[0], -1)
+    output = classifier(feat)
+    loss = criterion(output, target)
+    _, predicted = torch.max(output.data, 1)
+    return loss, predicted, feat
+
+
 def train_lincls(train_loaders, val_loader, trained_backbone, classifier, logger, fitlog, DEVICE, optimizer, criterion, args):
     best_lincls = None
     min_val_loss = 1e8
@@ -407,26 +360,23 @@ def train_lincls(train_loaders, val_loader, trained_backbone, classifier, logger
         for i, train_loader in enumerate(train_loaders):
             for idx, (sample, target, domain) in enumerate(train_loader):
                 sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
-                _, feat = trained_backbone(sample)
-                if len(feat.shape) == 3:
-                    feat = feat.reshape(feat.shape[0], -1)
-                output = classifier(feat)
-                loss = criterion(output, target)
+                loss, predicted, _ = calculate_lincls_output(sample, target, trained_backbone, classifier, criterion)
                 total_loss += loss.item()
+                total += target.size(0)
+                correct += (predicted == target).sum()
+
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                _, predicted = torch.max(output.data, 1)
-                total += target.size(0)
-                correct += (predicted == target).sum()
+
         # save model
         model_dir = model_dir_name + '/lincls_' + args.model_name + str(epoch) + '.pt'
         print('Saving model at {} epoch to {}'.format(epoch, model_dir))
-        torch.save({'trained_backbone': trained_backbone.state_dict(), 'classifier':classifier.state_dict()}, model_dir)
+        torch.save({'trained_backbone': trained_backbone.state_dict(), 'classifier': classifier.state_dict()}, model_dir)
 
         acc_train = float(correct) * 100.0 / total
         logger.debug(f'epoch train loss     : {total_loss:.4f}, train acc     : {acc_train:.4f}')
-        fitlog.add_loss(total_loss , name="Train Loss", step=epoch)
+        fitlog.add_loss(total_loss, name="Train Loss", step=epoch)
         fitlog.add_metric({"dev": {"Train Acc": acc_train}}, step=epoch)
 
         if args.scheduler:
@@ -443,13 +393,8 @@ def train_lincls(train_loaders, val_loader, trained_backbone, classifier, logger
                 correct = 0
                 for idx, (sample, target, domain) in enumerate(val_loader):
                     sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
-                    _, feat = trained_backbone(sample)
-                    if len(feat.shape) == 3:
-                        feat = feat.reshape(feat.shape[0], -1)
-                    output = classifier(feat)
-                    loss = criterion(output, target)
+                    loss, predicted, _ = calculate_lincls_output(sample, target, trained_backbone, classifier, criterion)
                     total_loss += loss.item()
-                    _, predicted = torch.max(output.data, 1)
                     total += target.size(0)
                     correct += (predicted == target).sum()
                 acc_val = float(correct) * 100.0 / total
@@ -477,18 +422,13 @@ def test_lincls(test_loader, trained_backbone, best_lincls, logger, fitlog, DEVI
         classifier.eval()
         for idx, (sample, target, domain) in enumerate(test_loader):
             sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
-            _, feat = trained_backbone(sample)
-            if len(feat.shape) == 3:
-                feat = feat.reshape(feat.shape[0], -1)
-            output = classifier(feat)
+            loss, predicted, feat = calculate_lincls_output(sample, target, trained_backbone, classifier, criterion)
+            total_loss += loss.item()
             if feats is None:
                 feats = feat
             else:
                 feats = torch.cat((feats, feat), 0)
             trgs = np.append(trgs, target.data.cpu().numpy())
-            loss = criterion(output, target)
-            total_loss += loss.item()
-            _, predicted = torch.max(output.data, 1)
             preds = np.append(preds, predicted.data.cpu().numpy())
             for t, p in zip(target.view(-1), predicted.view(-1)):
                 confusion_matrix[t.long(), p.long()] += 1

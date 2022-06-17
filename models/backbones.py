@@ -151,7 +151,7 @@ class AE(nn.Module):
             return x_decoded, x_encoded
         else:
             out = self.classifier(x_encoded)
-            return out, x_encoded
+            return out, x_decoded
 
 class CNN_AE(nn.Module):
     def __init__(self, n_channels, n_classes, out_channels=128, backbone=True):
@@ -203,7 +203,7 @@ class CNN_AE(nn.Module):
             self.out_dim = 21 * out_channels
 
         if backbone == False:
-            self.classifier = nn.Linear(self.outdim, n_classes)
+            self.classifier = nn.Linear(self.out_dim, n_classes)
 
     def forward(self, x):
         x = x.permute(0, 2, 1)
@@ -226,7 +226,7 @@ class CNN_AE(nn.Module):
             return x_decoded, x_encoded
         else:
             out = self.classifier(x_encoded)
-            return out, x_encoded
+            return out, x_decoded
 
 class Transformer(nn.Module):
     def __init__(self, n_channels, len_sw, n_classes, dim=128, depth=4, heads=4, mlp_dim=64, dropout=0.1, backbone=True):
