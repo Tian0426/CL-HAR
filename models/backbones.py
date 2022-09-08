@@ -183,6 +183,8 @@ class CNN_AE(nn.Module):
 
         if n_channels == 9: # ucihar
             self.lin1 = nn.Linear(33, 34)
+        elif n_channels == 6: # hhar
+            self.lin1 = nn.Identity()
         elif n_channels == 3: # shar
             self.lin1 = nn.Linear(39, 40)
 
@@ -199,6 +201,9 @@ class CNN_AE(nn.Module):
         if n_channels == 9: # ucihar
             self.lin2 = nn.Linear(127, 128)
             self.out_dim = 18 * out_channels
+        elif n_channels == 6:  # hhar
+            self.lin2 = nn.Linear(99, 100)
+            self.out_dim = 15 * out_channels
         elif n_channels == 3: # shar
             self.out_dim = 21 * out_channels
 
@@ -217,6 +222,8 @@ class CNN_AE(nn.Module):
         x = self.d_conv3(self.unpool1(x, indice1))
         if self.n_channels == 9: # ucihar
             x_decoded = self.lin2(x)
+        elif self.n_channels == 6 : # hhar
+            x_decoded =self.lin2(x)
         elif self.n_channels == 3: # shar
             x_decoded = x
         x_decoded = x_decoded.permute(0, 2, 1)

@@ -3,4 +3,7 @@ data/
 .idea/*
 .DS_Store
 check.sh
-
+data_preprocess/data_preprocess_uea.py
+main_uea.py
+trainer_uea.py
+uea_script.sh

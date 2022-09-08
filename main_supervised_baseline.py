@@ -93,38 +93,44 @@ def train(args, train_loaders, val_loader, model, DEVICE, optimizer, criterion):
         fitlog.add_metric({"dev": {"Train Acc": acc_train}}, step=epoch)
         logger.debug(f'Train Loss     : {train_loss / n_batches:.4f}\t | \tTrain Accuracy     : {acc_train:2.4f}\n')
 
-        with torch.no_grad():
-            model.eval()
-            val_loss = 0
-            n_batches = 0
-            total = 0
-            correct = 0
-            for idx, (sample, target, domain) in enumerate(val_loader):
-                n_batches += 1
-                sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
-                if args.backbone[-2:] == 'AE':
-                    out, x_decoded = model(sample)
-                else:
-                    out, _ = model(sample)
-                loss = criterion(out, target)
-                if args.backbone[-2:] == 'AE':
-                    loss += nn.MSELoss()(sample, x_decoded) * args.lambda1
-                val_loss += loss.item()
-                _, predicted = torch.max(out.data, 1)
-                total += target.size(0)
-                correct += (predicted == target).sum()
-            acc_val = float(correct) * 100.0 / total
-            fitlog.add_loss(val_loss / n_batches, name="Val Loss", step=epoch)
-            fitlog.add_metric({"dev": {"Val Acc": acc_val}}, step=epoch)
-            logger.debug(f'Val Loss     : {val_loss / n_batches:.4f}\t | \tVal Accuracy     : {acc_val:2.4f}\n')
+        if val_loader is None:
+            best_model = deepcopy(model.state_dict())
+            model_dir = save_dir + args.model_name + '.pt'
+            print('Saving models at {} epoch to {}'.format(epoch, model_dir))
+            torch.save({'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict()}, model_dir)
+        else:
+            with torch.no_grad():
+                model.eval()
+                val_loss = 0
+                n_batches = 0
+                total = 0
+                correct = 0
+                for idx, (sample, target, domain) in enumerate(val_loader):
+                    n_batches += 1
+                    sample, target = sample.to(DEVICE).float(), target.to(DEVICE).long()
+                    if args.backbone[-2:] == 'AE':
+                        out, x_decoded = model(sample)
+                    else:
+                        out, _ = model(sample)
+                    loss = criterion(out, target)
+                    if args.backbone[-2:] == 'AE':
+                        loss += nn.MSELoss()(sample, x_decoded) * args.lambda1
+                    val_loss += loss.item()
+                    _, predicted = torch.max(out.data, 1)
+                    total += target.size(0)
+                    correct += (predicted == target).sum()
+                acc_val = float(correct) * 100.0 / total
+                fitlog.add_loss(val_loss / n_batches, name="Val Loss", step=epoch)
+                fitlog.add_metric({"dev": {"Val Acc": acc_val}}, step=epoch)
+                logger.debug(f'Val Loss     : {val_loss / n_batches:.4f}\t | \tVal Accuracy     : {acc_val:2.4f}\n')
 
-            if val_loss <= min_val_loss:
-                min_val_loss = val_loss
-                best_model = deepcopy(model.state_dict())
-                print('update')
-                model_dir = save_dir + args.model_name + '.pt'
-                print('Saving models at {} epoch to {}'.format(epoch, model_dir))
-                torch.save({'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict()}, model_dir)
+                if val_loss <= min_val_loss:
+                    min_val_loss = val_loss
+                    best_model = deepcopy(model.state_dict())
+                    print('update')
+                    model_dir = save_dir + args.model_name + '.pt'
+                    print('Saving models at {} epoch to {}'.format(epoch, model_dir))
+                    torch.save({'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict()}, model_dir)
 
     return best_model
 
