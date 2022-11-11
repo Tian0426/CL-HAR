@@ -163,9 +163,6 @@ def test(test_loader, model, DEVICE, criterion, plt=False):
                 trgs = torch.cat((trgs, target))
                 feats = torch.cat((feats, features), 0)
 
-            trgs = torch.cat((trgs, target))
-            feats = torch.cat((feats, features), 0)
-
         acc_test = float(correct) * 100.0 / total
 
     fitlog.add_best_metric({"dev": {"Test Loss": total_loss / n_batches}})
