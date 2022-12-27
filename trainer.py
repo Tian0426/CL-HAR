@@ -281,7 +281,6 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
         if args.cases in ['subject', 'subject_large']:
             with torch.no_grad():
                 best_model = copy.deepcopy(model.state_dict())
-                break
         else:
             with torch.no_grad():
                 model.eval()
