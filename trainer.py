@@ -143,7 +143,7 @@ def setup(args, DEVICE):
         args.weight_decay = 1.5e-6
     if args.framework == 'simsiam':
         args.weight_decay = 1e-4
-        args.EMA = 1.0
+        args.EMA = 0.0
         args.lr_mul = 1.0
     if args.framework in ['simclr', 'nnclr']:
         args.criterion = 'NTXent'
@@ -263,7 +263,7 @@ def train(train_loaders, val_loader, model, logger, fitlog, DEVICE, optimizers, 
                 loss.backward()
                 for optimizer in optimizers:
                     optimizer.step()
-                if args.framework == 'byol':
+                if args.framework in ['byol', 'simsiam']:
                     model.update_moving_average()
         fitlog.add_loss(optimizers[0].param_groups[0]['lr'], name="learning rate", step=epoch)
         for scheduler in schedulers:
